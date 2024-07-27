@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import Canvas, Entry, Text, Button, PhotoImage
+from tkinter import Canvas, Entry, Text, Button, PhotoImage, ttk
 from pathlib import Path
 import threading
 import speech_recognition as sr
@@ -10,7 +10,7 @@ import json
 import os
 import sqlite3
 from datetime import datetime
-
+import re
 
 
 # Kết nối tới database
@@ -212,6 +212,50 @@ def rating():
     )
     rating_window.resizable(False, False)
     rating_window.mainloop()
+def query(username):
+    conn = sqlite3.connect('data.db')
+    c = conn.cursor()
+    
+    c.execute("SELECT cong_viec, thoi_gian, dia_diem, luu_y FROM tasks WHERE username=?", (username,))
+    rows = c.fetchall()
+    
+    conn.close()
+    return rows
+
+# Hàm để thêm dữ liệu vào bảng Treeview
+def add_data(data):
+    for row in data:
+        tree.insert("", "end", values=row)
+
+# Hàm để lấy username và hiển thị dữ liệu tương ứng
+def show_data():
+
+    global username, tree
+    data = query(username)
+    tree.delete(*tree.get_children())  # Xóa dữ liệu cũ trong Treeview
+    add_data(data)
+    
+def task():
+    global username, tree
+    # Tạo cửa sổ chính
+    task_window = tk.Toplevel(window)
+    task_window.title("Data Sheet")
+    task_window.geometry("800x600")
+
+    # Tạo bảng dữ liệu (Treeview)
+    columns = ("Công việc", "Thời gian", "Địa điểm", "Lưu ý")
+    tree = ttk.Treeview(task_window, columns=columns, show="headings")
+    for col in columns:
+        tree.heading(col, text=col)
+        tree.column(col, minwidth=0, width=150, stretch=tk.NO)
+    tree.pack(fill=tk.BOTH, expand=True)
+
+
+    # Nút để hiển thị dữ liệu từ cơ sở dữ liệu
+    show_button = tk.Button(task_window, text="Hiển thị dữ liệu", command=show_data)
+    show_button.pack(pady=10)
+
+    task_window.mainloop()
 
 def say(text, lang='vi'):
     def run():
@@ -261,6 +305,28 @@ def send_data():
             main_output_text.config(state=tk.NORMAL)
             main_output_text.insert(tk.END, "GenFriend: " + Ai_ans[0] + "\n")
             main_output_text.config(state=tk.DISABLED)
+            pattern = r'\*\*Công việc\*\*: (.+?)\n\*\*Thời gian\*\*: (.+?)\n\*\*Địa điểm\*\*: (.+?)\n\*\*Lưu ý\*\*: (.+?)\n'
+
+            # Tìm khớp với mẫu
+            match = re.search(pattern, Ai_ans[0])
+
+            # Kiểm tra nếu có khớp và lấy dữ liệu
+            if match:
+                cong_viec = match.group(1)
+                thoi_gian = match.group(2)
+                dia_diem = match.group(3)
+                luu_y = match.group(4)
+                
+                print(f"Công việc: {cong_viec}")
+                print(f"Thời gian: {thoi_gian}")
+                print(f"Địa điểm: {dia_diem}")
+                print(f"Lưu ý: {luu_y}")
+                cursor.execute('''
+                    INSERT INTO tasks (username, cong_viec, thoi_gian, dia_diem, luu_y)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (username,cong_viec,thoi_gian,dia_diem,luu_y))
+            else:
+                print("Không tìm thấy dữ liệu theo cấu trúc yêu cầu.")
             say(Ai_ans[0])
             user = {
                 "role": "user",
@@ -287,7 +353,7 @@ def start_recognition_thread():
     recognition_thread.start()
 
 OUTPUT_PATH = Path(__file__).parent
-ASSETS_PATH = OUTPUT_PATH / Path(r"D:\python\bot\build\assets\frame0")
+ASSETS_PATH = OUTPUT_PATH / Path(r"D:\python\bot\BOT_12H_update\build\assets\frame0")
 
 def relative_to_assets(path: str) -> Path:
     return ASSETS_PATH / Path(path)
@@ -339,7 +405,7 @@ main_log_button = Button(
     image=main_log_button_img,
     borderwidth=0,
     highlightthickness=0,
-    command=lambda: print("button_2 clicked"),
+    command=lambda: task(),
     relief="flat"
 )
 main_log_button.place(
