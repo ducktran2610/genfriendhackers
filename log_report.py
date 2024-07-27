@@ -2,6 +2,7 @@ import json
 import os
 import sqlite3
 import requests
+import re
 
 # Gọi database
 db = sqlite3.connect('data.db')
@@ -59,5 +60,6 @@ else:
     if res.status_code == 200:
         Ai_ans = [ans['content'] for ans in res.json()['messages'] if ans['type'] == "answer"]
     # Tạo file báo cáo
+    output = re.sub(r'\[tên người dùng\]', username, Ai_ans[0],flags=re.IGNORECASE)
     with open(username + '_report' + '.txt', 'w', encoding='utf-8') as file:
-        file.write(Ai_ans[0] + '\n')
+        file.write(output+ '\n')

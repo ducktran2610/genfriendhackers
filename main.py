@@ -18,7 +18,7 @@ def main(usern):
     # Kết nối tới database
     db = sqlite3.connect('data.db')
     cursor = db.cursor()
-
+    # API của Coze
     API_URL = "https://api.coze.com/open_api/v2/chat"
     psn_token = "pat_NyD4nlGvOto9c7OoSISO6x3uqQhgN0oO3rtNewgdvpXNw9RZk7FHjNFHT2oFa4nR"
     header = {
@@ -27,6 +27,7 @@ def main(usern):
         'Connection': "keep-alive",
         "Accept": "*/*",
     }
+    # Truy vấn lịch sử chat từ database theo username
     cursor.execute("SELECT history_chat FROM users WHERE username = ?", (username,))
     row = cursor.fetchone()
     if row:
@@ -42,7 +43,7 @@ def main(usern):
         "stream": False,
         "chat_history": history,
     }
-
+    # Khởi tạo cửa sổ đánh giá
     def rating():
         vote_point = 0
         def vote_point_u(a):
@@ -212,6 +213,7 @@ def main(usern):
         )
         rating_window.resizable(False, False)
         rating_window.mainloop()
+    # Truy vấn danh sách việc cần làm từ database theo username
     def query(username):
         conn = sqlite3.connect('data.db')
         c = conn.cursor()
@@ -234,7 +236,7 @@ def main(usern):
         data = query(username)
         tree.delete(*tree.get_children())  # Xóa dữ liệu cũ trong Treeview
         add_data(data)
-        
+    # Cửa sổ hiển thị danh sách việc cần làm
     def task():
         global username, tree
         # Tạo cửa sổ chính
@@ -256,7 +258,7 @@ def main(usern):
         show_button.pack(pady=10)
 
         task_window.mainloop()
-
+    # Chuyển văn bản thành giọng noi
     def say(text, lang='vi'):
         def run():
             tts = gTTS(text=text, lang=lang)
@@ -266,7 +268,7 @@ def main(usern):
             os.remove(audio_file)
 
         threading.Thread(target=run).start()
-
+    # Chuyển giọng nói thành văn bản
     def recognize_speech():
         recognizer = sr.Recognizer()
         with sr.Microphone() as source:
@@ -286,9 +288,10 @@ def main(usern):
         except sr.RequestError as e:
             main_anou_text.delete("1.0", tk.END)
             main_anou_text.insert(tk.END, f"Không thể yêu cầu kết quả từ Google Speech Recognition; {e}")
-
+    # Gửi dữ liệu từ khung chat
     def send_data():
         text = main_input_entry.get().strip()
+        main_input_entry.delete(0, tk.END)
         main_output_text.config(state=tk.NORMAL)
         main_output_text.insert(tk.END, "Bạn: " + text + "\n")
         main_output_text.config(state=tk.DISABLED)
@@ -299,20 +302,22 @@ def main(usern):
             main_anou_text.insert(tk.END, "Đang chờ AI phản hồi...")
 
             res = requests.post(API_URL, data=data, headers=header)
-
+            
             if res.status_code == 200:
+                main_anou_text.delete("1.0", tk.END)
                 Ai_ans = [ans['content'] for ans in res.json()['messages'] if ans['type'] == "answer"]
                 main_output_text.config(state=tk.NORMAL)
                 main_output_text.insert(tk.END, "GenFriend: " + Ai_ans[0] + "\n")
                 main_output_text.config(state=tk.DISABLED)
+                # Khởi tạo một bộ lọc dữ liệu bằng thư viện re và thêm vào bảng task trong database
                 pattern = re.compile(
                     r'"\s*(.*?)\s*-\s*(.*?)\s*-\s*(.*?)\s*-\s*(.*?)\s*"\s*'
                 )
 
-                # Search for matches in the data string
+                # Tìm kiếm dữ liệu
                 match = pattern.search(Ai_ans[0])
 
-                # Check if match was found
+                # Kiểm tra kết quả
                 if match:
                     task = match.group(1)
                     time = match.group(2)
@@ -321,20 +326,14 @@ def main(usern):
                     if note.lower() == 'none':
                         note = "Không có lưu ý"
 
-                    # Print the extracted information
-                    print(f"Việc cần làm: {task}")
-                    print(f"Thời gian: {time}")
-                    print(f"Địa điểm: {location}")
-                    print(f"Lưu ý: {note}")
+                    # Thêm việc cần làm vào database
                     cursor.execute('''
                         INSERT INTO tasks (username, cong_viec, thoi_gian, dia_diem, luu_y)
                         VALUES (?, ?, ?, ?, ?)
                     ''', (username,task,time,location,note))
-
-                else:
-                    print("Dữ liệu không khớp với định dạng dự kiến.")
                     
                 say(Ai_ans[0])
+                # Thiết lập và lưu lại lịch sử chat vào database
                 user = {
                     "role": "user",
                     "content": text,
@@ -354,7 +353,7 @@ def main(usern):
             else:
                 main_anou_text.delete("1.0", tk.END)
                 main_anou_text.insert(tk.END, f"Yêu cầu API thất bại với mã trạng thái: {res.status_code}")
-
+    # Khởi tạo một luồng ghi âm và chuyển thành văn bản
     def start_recognition_thread():
         recognition_thread = threading.Thread(target=recognize_speech)
         recognition_thread.start()
@@ -364,11 +363,12 @@ def main(usern):
 
     def relative_to_assets(path: str) -> Path:
         return ASSETS_PATH / Path(path)
-
+    # Tạo cửa sổ chat chính
     window = tk.Tk()
     window.geometry("800x450")
     window.configure(bg="#FFFFFF")
     window.title("GenFriend Hackers")
+    # Thiết lập các đối tượng trong cửa sổ
     canvas = Canvas(
         window,
         bg="#FFFFFF",
